@@ -5,6 +5,10 @@ services:
         env_file: .env
         mem_limit: 8g
         cpus: 2
+        # Publish to host loopback only so the on-host snapsec-agent can
+        # reach mongo without exposing it to the public internet.
+        ports:
+            - "127.0.0.1:27017:27017"
         volumes:
             - mongodb_data:/data/db
             - ./mongo-init:/docker-entrypoint-initdb.d

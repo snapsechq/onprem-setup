@@ -345,15 +345,16 @@ setup_agent() {
     local install_dir
     install_dir="$(realpath "$(dirname "$0")")"
 
-    local mongo_uri
-    mongo_uri="$(read_env_var MONGO_URI)"
-    [[ -z "$mongo_uri" ]] && mongo_uri="$(read_env_var MONGODB_URI)"
-    [[ -z "$mongo_uri" ]] && mongo_uri="mongodb://127.0.0.1:27017"
-
-    local mongo_db
-    mongo_db="$(read_env_var MONGO_DATABASE)"
-    [[ -z "$mongo_db" ]] && mongo_db="$(read_env_var MONGO_DB)"
-    [[ -z "$mongo_db" ]] && mongo_db="snapsec"
+    # Sanity check: the agent reads MONGODB_HOST/PORT/USER/PASS straight
+    # out of <install_dir>/.env at runtime, so we just make sure the
+    # essentials are present before installing.
+    local mongo_host mongo_port
+    mongo_host="$(read_env_var MONGODB_HOST)"
+    mongo_port="$(read_env_var MONGODB_PORT)"
+    if [[ -z "$mongo_host" || -z "$mongo_port" ]]; then
+        log_error "MONGODB_HOST / MONGODB_PORT not set in $ENV_FILE; cannot configure agent."
+        return 1
+    fi
 
     # Public-facing URL of this on-prem instance (set during install/update).
     local base_url
@@ -368,30 +369,61 @@ setup_agent() {
     fi
 
     # Optional Cloudflare Access service token (used when admin sits behind
-    # Cloudflare Zero Trust). Both must be set together to take effect.
+    # Cloudflare Zero Trust). We always prompt: leaving both empty means
+    # "try without CF headers"; if that registration fails we'll loop back
+    # and ask again so the operator can supply real credentials.
     local cf_access_id="${SNAPSEC_CF_ACCESS_CLIENT_ID:-}"
     local cf_access_secret="${SNAPSEC_CF_ACCESS_CLIENT_SECRET:-}"
+    prompt_cf_access() {
+        echo ""
+        log_info "Cloudflare Access service token (leave blank to attempt registration without it)."
+        cf_access_id=""
+        cf_access_secret=""
+        read -p "$(echo -e "${BOLD}CF-Access-Client-Id [skip]: ${NC}")" cf_access_id
+        if [[ -n "$cf_access_id" ]]; then
+            read -sp "$(echo -e "${BOLD}CF-Access-Client-Secret: ${NC}")" cf_access_secret
+            echo ""
+            if [[ -z "$cf_access_secret" ]]; then
+                log_warn "Client secret was empty; will attempt without Cloudflare Access."
+                cf_access_id=""
+            fi
+        else
+            log_info "Proceeding without Cloudflare Access headers."
+        fi
+    }
+    if [[ -z "$cf_access_id" || -z "$cf_access_secret" ]]; then
+        prompt_cf_access
+    fi
 
     extract_agent_binary || return 1
 
     log_info "Registering systemd service ($AGENT_SERVICE)..."
-    local install_args=(--install
-        --admin-url "$admin_url"
-        --enrollment-token "$enrollment_token"
-        --install-dir "$install_dir"
-        --mongo-uri "$mongo_uri"
-        --mongo-db "$mongo_db")
-    if [[ -n "$base_url" ]]; then
-        install_args+=(--base-url "$base_url")
-    fi
-    if [[ -n "$cf_access_id" && -n "$cf_access_secret" ]]; then
-        log_info "Configuring Cloudflare Access service token."
-        install_args+=(--cf-access-id "$cf_access_id" --cf-access-secret "$cf_access_secret")
-    fi
-    if ! sudo "$AGENT_BIN" "${install_args[@]}"; then
+    while true; do
+        local install_args=(--install
+            --admin-url "$admin_url"
+            --enrollment-token "$enrollment_token"
+            --install-dir "$install_dir")
+        if [[ -n "$base_url" ]]; then
+            install_args+=(--base-url "$base_url")
+        fi
+        if [[ -n "$cf_access_id" && -n "$cf_access_secret" ]]; then
+            log_info "Configuring Cloudflare Access service token."
+            install_args+=(--cf-access-id "$cf_access_id" --cf-access-secret "$cf_access_secret")
+        else
+            log_info "Attempting registration without Cloudflare Access headers."
+        fi
+
+        if sudo "$AGENT_BIN" "${install_args[@]}"; then
+            break
+        fi
+
         log_error "snapsec-agent --install failed. See journalctl -u $AGENT_SERVICE for details."
+        if confirm "Retry with (different) Cloudflare Access credentials?" "y"; then
+            prompt_cf_access
+            continue
+        fi
         return 1
-    fi
+    done
 
     log_success "Snapsec agent installed and registering with $admin_url."
     log_info "Tail logs with: journalctl -u $AGENT_SERVICE -f"
