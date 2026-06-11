@@ -314,15 +314,8 @@ services:
 
 volumes:
     mongodb_data:
-        name: snapsec_mongodb_data_prod
     redis_data:
-        name: snapsec_redis_data_prod
-    build_data:
-        name: snapsec_build_data_prod
     rabbitmq_data:
-        name: snapsec_rabbitmq_data
-    dozzle:
-        name: snapsec_dozzle
     snapsec_data:
 
 networks:
