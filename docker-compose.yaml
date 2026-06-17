@@ -68,6 +68,7 @@ services:
             - snapsec_data:/data
         depends_on:
             - mongodb
+            - vm
         networks:
             - snapsec_network_prod
 
