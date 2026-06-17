@@ -42,11 +42,23 @@ services:
         networks:
             - snapsec_network_prod
     
-    
-
-
     migration-service:
         image: ghcr.io/faizanalibhat/migration-service:master
+        restart: unless-stopped
+        env_file: .env
+        mem_limit: 2g
+        cpus: 2
+        volumes:
+            - ./keys:/app/keys
+            - snapsec_data:/data
+        depends_on:
+            - mongodb
+        networks:
+            - snapsec_network_prod
+
+
+    mcp-service:
+        image: ghcr.io/faizanalibhat/mcp-service:master
         restart: unless-stopped
         env_file: .env
         mem_limit: 2g
