@@ -1,6 +1,8 @@
 services:
     mongodb:
         image: mongo:latest
+        container_name: mongodb
+        hostname: mongodb
         restart: unless-stopped
         env_file: .env
         mem_limit: 8g
@@ -12,9 +14,19 @@ services:
         volumes:
             - mongodb_data:/data/db
             - ./mongo-init:/docker-entrypoint-initdb.d
+            - ./configs/mongo-keyfile:/tmp/mongo-keyfile:ro
         environment:
             - MONGO_INITDB_ROOT_USERNAME=${MONGODB_USER}
             - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASS}
+        command:
+            - bash
+            - -c
+            - |
+                mkdir -p /etc/mongo
+                cp /tmp/mongo-keyfile /etc/mongo/keyfile
+                chown mongodb:mongodb /etc/mongo/keyfile
+                chmod 400 /etc/mongo/keyfile
+                exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /etc/mongo/keyfile --bind_ip_all
         healthcheck:
             test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/27017"]
             interval: 30s

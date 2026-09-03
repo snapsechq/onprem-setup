@@ -26,6 +26,8 @@ ENV_FILE=".env"
 ENV_EXAMPLE=".env.example"
 AUTH_DIR=".suite-auth"
 AUTH_FILE="$AUTH_DIR/.github-auth"
+COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yaml}"
+MONGO_KEYFILE="configs/mongo-keyfile"
 
 # --- Agent constants ---
 AGENT_BIN="/usr/local/bin/snapsec-agent"
@@ -281,6 +283,43 @@ read_env_var() {
     echo "$value"
 }
 
+ensure_mongo_keyfile() {
+    log_step "Checking MongoDB keyfile..."
+    local config_dir=$(dirname "$MONGO_KEYFILE")
+    if [[ ! -d "$config_dir" ]]; then
+        mkdir -p "$config_dir"
+    fi
+    if [[ ! -f "$MONGO_KEYFILE" ]]; then
+        log_info "Generating MongoDB keyfile ($MONGO_KEYFILE)..."
+        openssl rand -base64 756 > "$MONGO_KEYFILE"
+        chmod 400 "$MONGO_KEYFILE"
+        log_success "MongoDB keyfile generated with permissions 400."
+    else
+        log_info "MongoDB keyfile ($MONGO_KEYFILE) already exists."
+    fi
+}
+
+cmd_database() {
+    local action=$1
+    local target=$2
+
+    if [[ "$action" == "enable" && "$target" == "replicaset" ]]; then
+        log_info "Executing MongoDB replica set initialization script..."
+        if command -v phase &>/dev/null; then
+            phase run -- ./scripts/init-mongo-rs.sh
+        else
+            ./scripts/init-mongo-rs.sh
+        fi
+    else
+        log_error "Usage: ./setup.sh database enable replicaset"
+        exit 1
+    fi
+}
+
+initiate_mongo_replset() {
+    cmd_database enable replicaset
+}
+
 extract_agent_binary() {
     # Resolve target arch.
     local arch
@@ -503,6 +542,7 @@ handle_install() {
     check_dependencies
     setup_env
     setup_keys
+    ensure_mongo_keyfile
     
     if grep -q "^ENABLE_TELEMETRY=" "$ENV_FILE" 2>/dev/null; then
         log_info "Telemetry already configured in $ENV_FILE. Skipping opt-in."
@@ -548,6 +588,7 @@ handle_install() {
         exit 1
     fi
     
+    initiate_mongo_replset
     setup_cron
     setup_agent
     mark_installed
@@ -561,7 +602,7 @@ handle_update() {
     check_is_installed
     
     log_info "Starting update process..."
-    
+    ensure_mongo_keyfile
     ensure_registry_auth
 
     log_step "Fetching Updates"
@@ -576,6 +617,7 @@ handle_update() {
 
     log_step "Restarting Services"
     docker-compose up -d --remove-orphans
+    initiate_mongo_replset
     
     log_step "Cleaning up old images"
     docker image prune -f
@@ -587,6 +629,7 @@ handle_start() {
     print_banner
     check_is_installed
     log_info "Starting infrastructure..."
+    ensure_mongo_keyfile
     
     log_info "Ensuring infrastructure is stopped before starting..."
     docker-compose down 2>/dev/null || true
@@ -596,6 +639,7 @@ handle_start() {
         log_error "Failed to start services."
         exit 1
     fi
+    initiate_mongo_replset
     log_success "Infrastructure started successfully! ${STAR}"
 }
 
@@ -633,11 +677,12 @@ show_help() {
     echo -e "Usage: $0 ${BOLD}[COMMAND] [OPTIONS]${NC}"
     echo ""
     echo -e "${BOLD}Commands:${NC}"
-    echo "  install          Run the interactive installation process"
-    echo "  update           Update the application and restart services"
-    echo "  start            Start the infrastructure services"
-    echo "  stop             Stop the infrastructure services"
-    echo "  configure [comp] Setup specific components (e.g., agent)"
+    echo "  install                      Run the interactive installation process"
+    echo "  update                       Update the application and restart services"
+    echo "  start                        Start the infrastructure services"
+    echo "  stop                         Stop the infrastructure services"
+    echo "  database enable replicaset   Initialize MongoDB replica set"
+    echo "  configure [comp]             Setup specific components (e.g., agent)"
     echo ""
     echo -e "${BOLD}Environment overrides:${NC}"
     echo "  SNAPSEC_ADMIN_URL          Admin control plane URL (default: $ADMIN_URL_DEFAULT)"
@@ -655,10 +700,11 @@ show_help() {
 
 COMMAND=""
 TELEMETRY_CHOICE=""
+EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        install|update|start|stop|configure)
+        install|update|start|stop|configure|database)
             COMMAND="$1"
             shift
             if [[ "$COMMAND" == "configure" ]]; then
@@ -679,9 +725,8 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         *)
-            log_error "Unknown option: $1"
-            show_help
-            exit 1
+            EXTRA_ARGS+=("$1")
+            shift
             ;;
     esac
 done
@@ -707,6 +752,9 @@ case "$COMMAND" in
         ;;
     configure)
         handle_configure "$SUBCOMMAND"
+        ;;
+    database)
+        cmd_database "${EXTRA_ARGS[@]}"
         ;;
     *)
         log_error "Unknown command: $COMMAND"
