@@ -1,7 +1,6 @@
 services:
     mongodb:
         image: mongo:latest
-        container_name: mongodb
         hostname: mongodb
         restart: unless-stopped
         env_file: .env

@@ -9,7 +9,17 @@ if [[ -f "$PARENT_DIR/.env" ]]; then
     set +a
 fi
 
-MONGO_CONTAINER="${MONGO_CONTAINER:-mongodb}"
+if [[ -z "$MONGO_CONTAINER" ]]; then
+    # Dynamically find running mongodb container for this compose project/directory if available
+    MONGO_CONTAINER=$(cd "$PARENT_DIR" && docker compose ps mongodb --format '{{.Name}}' 2>/dev/null | head -n1 || true)
+    if [[ -z "$MONGO_CONTAINER" ]]; then
+        MONGO_CONTAINER=$(docker ps --filter "name=mongodb" --format '{{.Names}}' 2>/dev/null | head -n1 || true)
+    fi
+    if [[ -z "$MONGO_CONTAINER" ]]; then
+        MONGO_CONTAINER="mongodb"
+    fi
+fi
+
 MONGO_USER="${MONGODB_USER}"
 MONGO_PASS="${MONGODB_PASS}"
 
