@@ -355,24 +355,6 @@ services:
         networks:
             - snapsec_network_prod
 
-
-    agentsruntime:
-        image: ghcr.io/snapsechq/agentsruntime:master
-        restart: unless-stopped
-        env_file: .env
-        mem_limit: 4g
-        cpus: 3
-        volumes:
-            - ./keys:/app/keys
-            - snapsec_data:/data
-        depends_on:
-            - mongodb
-            - redis
-        networks:
-            - snapsec_network_prod
-
-
-
 volumes:
     mongodb_data:
     redis_data:
