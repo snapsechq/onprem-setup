@@ -96,15 +96,11 @@ services:
         depends_on:
             - auth
             - vm
-            - apisec
             - op
-            - tm
-            - vs
             - util
             - asset-inventory
             - cmdexec
             - notify
-            - vscanner
 
     auth:
         image: ghcr.io/snapsechq/auth:master
@@ -120,33 +116,33 @@ services:
         networks:
             - snapsec_network_prod
 
-    vs:
-        image: ghcr.io/snapsechq/vs:master
-        restart: unless-stopped
-        env_file: .env
-        mem_limit: 2g
-        cpus: 2
-        volumes:
-            - ./keys:/app/keys
-            - snapsec_data:/data
-        depends_on:
-            - mongodb
-        networks:
-            - snapsec_network_prod
+    # vs:
+    #     image: ghcr.io/snapsechq/vs:master
+    #     restart: unless-stopped
+    #     env_file: .env
+    #     mem_limit: 2g
+    #     cpus: 2
+    #     volumes:
+    #         - ./keys:/app/keys
+    #         - snapsec_data:/data
+    #     depends_on:
+    #         - mongodb
+    #     networks:
+    #         - snapsec_network_prod
 
-    apisec:
-        image: ghcr.io/snapsechq/apisec:master
-        restart: unless-stopped
-        env_file: .env
-        mem_limit: 4g
-        cpus: 3
-        volumes:
-            - ./keys:/app/keys
-            - snapsec_data:/data
-        depends_on:
-            - mongodb
-        networks:
-            - snapsec_network_prod
+    # apisec:
+    #     image: ghcr.io/snapsechq/apisec:master
+    #     restart: unless-stopped
+    #     env_file: .env
+    #     mem_limit: 4g
+    #     cpus: 3
+    #     volumes:
+    #         - ./keys:/app/keys
+    #         - snapsec_data:/data
+    #     depends_on:
+    #         - mongodb
+    #     networks:
+    #         - snapsec_network_prod
 
     asset-inventory:
         image: ghcr.io/snapsechq/asset-inventory:master
@@ -162,19 +158,19 @@ services:
         networks:
             - snapsec_network_prod
 
-    vscanner:
-        image: ghcr.io/snapsechq/vscanner:master
-        restart: unless-stopped
-        env_file: .env
-        mem_limit: 6g
-        cpus: 3
-        volumes:
-            - ./keys:/app/keys
-            - snapsec_data:/data
-        depends_on:
-            - mongodb
-        networks:
-            - snapsec_network_prod
+    # vscanner:
+    #     image: ghcr.io/snapsechq/vscanner:master
+    #     restart: unless-stopped
+    #     env_file: .env
+    #     mem_limit: 6g
+    #     cpus: 3
+    #     volumes:
+    #         - ./keys:/app/keys
+    #         - snapsec_data:/data
+    #     depends_on:
+    #         - mongodb
+    #     networks:
+    #         - snapsec_network_prod
 
     cmdexec:
         image: ghcr.io/snapsechq/cmdexec:master
@@ -201,20 +197,6 @@ services:
             RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
         volumes:
             - rabbitmq_data:/var/lib/rabbitmq
-        networks:
-            - snapsec_network_prod
-
-    risk-register:
-        image: ghcr.io/snapsechq/risk-register:master
-        restart: unless-stopped
-        env_file: .env
-        mem_limit: 2g
-        cpus: 2
-        volumes:
-            - ./keys:/app/keys
-            - snapsec_data:/data
-        depends_on:
-            - mongodb
         networks:
             - snapsec_network_prod
 
@@ -248,20 +230,6 @@ services:
 
     util:
         image: ghcr.io/snapsechq/util:master
-        restart: unless-stopped
-        env_file: .env
-        mem_limit: 2g
-        cpus: 2
-        volumes:
-            - ./keys:/app/keys
-            - snapsec_data:/data
-        depends_on:
-            - mongodb
-        networks:
-            - snapsec_network_prod
-
-    tm:
-        image: ghcr.io/snapsechq/tm:master
         restart: unless-stopped
         env_file: .env
         mem_limit: 2g
