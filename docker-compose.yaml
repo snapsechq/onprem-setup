@@ -383,6 +383,7 @@ volumes:
     redis_data:
     rabbitmq_data:
     snapsec_data:
+    neo4j_data:
 
 networks:
     snapsec_network_prod:
